@@ -9,10 +9,22 @@ let view = null;                    // null = 시작 메뉴, 아니면 { label, 
 let steps = [], stepIndex = 0;
 let liveItems = [], liveWarnings = [], fetchedAt = 0, requestSeq = 0;
 
-const COMMUTES = {
-  work: { label: '출근', from: '잠실나루', to: '판교' },
-  home: { label: '퇴근', from: '판교', to: '잠실나루' },
-};
+// 출퇴근 역은 이 기기(localStorage)에만 저장한다. 서버로 보내지 않는다.
+const STORE_KEYS = ['barotaCommute', 'barotaRecentRoutes', 'barotaApiBase', 'barotaCommuteMode', 'barotaBusCity', 'barotaBusNode'];
+const LABELS = { work: '출근', home: '퇴근' };
+
+function loadCommute() {
+  try {
+    const c = JSON.parse(localStorage.getItem('barotaCommute') || 'null');
+    return c && c.home && c.work ? c : null;
+  } catch { return null; }
+}
+
+function commuteRoute(mode) {
+  const c = loadCommute();
+  if (!c) return null;
+  return mode === 'work' ? { from: c.home, to: c.work } : { from: c.work, to: c.home };
+}
 
 // ---- 데이터 로드 ----
 async function loadNetwork() {
@@ -45,7 +57,11 @@ function renderMenu() {
   const now = new Date();
   const pref = preferredMode(now);
   $('clockStatus').textContent = now.toLocaleString('ko-KR', { weekday: 'long', hour: '2-digit', minute: '2-digit' })
-    + (pref ? ' · 지금은 ' + COMMUTES[pref].label + ' 시간입니다' : '');
+    + (pref ? ' · 지금은 ' + LABELS[pref] + ' 시간입니다' : '');
+  for (const mode of ['work', 'home']) {
+    const r = commuteRoute(mode);
+    $(mode + 'Sub').textContent = r ? r.from + ' → ' + r.to : '⚙️ 역을 설정하세요';
+  }
   $('toWorkBtn').classList.toggle('recommended', pref === 'work');
   $('toHomeBtn').classList.toggle('recommended', pref === 'home');
   $('recentRoutes').replaceChildren(...recentRoutes().map(([from, to]) => {
@@ -239,18 +255,64 @@ async function refresh() {
 }
 
 // ---- 이벤트 ----
-$('apiBase').value = apiBase;
+// ---- 출퇴근 설정 ----
+function openSettings(show = $('settings').classList.contains('hidden')) {
+  $('settings').classList.toggle('hidden', !show);
+  $('settingsBtn').setAttribute('aria-expanded', String(show));
+  if (!show) return;
+  const c = loadCommute();
+  $('homeStationInput').value = c ? c.home + '역' : '';
+  $('workStationInput').value = c ? c.work + '역' : '';
+  $('apiBase').value = apiBase;
+  $('settingsError').classList.add('hidden');
+  $('settings').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function settingsError(msg) {
+  $('settingsError').textContent = msg;
+  $('settingsError').classList.toggle('hidden', !msg);
+}
+
+$('commuteForm').onsubmit = (e) => {
+  e.preventDefault();
+  if (!network) { settingsError('역 정보를 불러오는 중입니다. 잠시 후 다시 시도하세요.'); return; }
+  const home = network.resolve($('homeStationInput').value), work = network.resolve($('workStationInput').value);
+  if (!home) { settingsError('집 근처 역을 찾을 수 없습니다. 목록에서 골라 주세요.'); $('homeStationInput').focus(); return; }
+  if (!work) { settingsError('회사 근처 역을 찾을 수 없습니다. 목록에서 골라 주세요.'); $('workStationInput').focus(); return; }
+  if (home === work) { settingsError('집 근처 역과 회사 근처 역이 같습니다.'); return; }
+  if (!network.findRoute(home, work)) { settingsError(home + '역과 ' + work + '역 사이 지하철 경로를 찾지 못했습니다.'); return; }
+  localStorage.setItem('barotaCommute', JSON.stringify({ home, work }));
+  openSettings(false);
+  showMenu();
+};
+
+$('clearDataBtn').onclick = () => {
+  if (!confirm('이 기기에 저장된 출퇴근 역, 최근 경로, 설정을 모두 지울까요?')) return;
+  for (const k of STORE_KEYS) localStorage.removeItem(k);
+  for (const k of Object.keys(localStorage)) if (k.startsWith('barota')) localStorage.removeItem(k);
+  apiBase = '';
+  openSettings(false);
+  showMenu();
+};
+
 $('saveSettings').onclick = () => {
   const value = $('apiBase').value.trim();
   if (value && !/^(https:\/\/|\/)/i.test(value)) { alert('HTTPS 주소 또는 /api 같은 경로를 입력하세요.'); return; }
   apiBase = value;
   localStorage.setItem('barotaApiBase', value);
-  $('settings').classList.add('hidden');
+  openSettings(false);
   refresh();
 };
-$('settingsBtn').onclick = () => $('settings').classList.toggle('hidden');
-$('toWorkBtn').onclick = () => startRoute(COMMUTES.work.from, COMMUTES.work.to, COMMUTES.work.label);
-$('toHomeBtn').onclick = () => startRoute(COMMUTES.home.from, COMMUTES.home.to, COMMUTES.home.label);
+
+$('settingsBtn').onclick = () => openSettings();
+
+function startCommute(mode) {
+  const r = commuteRoute(mode);
+  if (!r) { openSettings(true); settingsError('먼저 집 근처 역과 회사 근처 역을 설정해 주세요.'); return; }
+  startRoute(r.from, r.to, LABELS[mode]);
+}
+$('toWorkBtn').onclick = () => startCommute('work');
+$('toHomeBtn').onclick = () => startCommute('home');
 $('routeForm').onsubmit = (e) => { e.preventDefault(); startRoute($('fromInput').value, $('toInput').value); };
 $('fromInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('toInput').focus(); } });
 $('swapBtn').onclick = () => { const a = $('fromInput').value; $('fromInput').value = $('toInput').value; $('toInput').value = a; };

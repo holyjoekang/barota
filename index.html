@@ -11,16 +11,40 @@
 <main class="app">
   <header>
     <div><span class="brand">🚇 바로타</span><small>서울·수도권 지하철 실시간 안내</small></div>
-    <button id="settingsBtn" class="subtle" aria-label="설정">⚙️</button>
+    <button id="settingsBtn" class="settings-btn" aria-label="출퇴근 설정" aria-expanded="false">⚙️ 출퇴근 설정</button>
   </header>
+
+  <!-- 출퇴근 설정 (이 기기에만 저장) -->
+  <section id="settings" class="panel hidden">
+    <h2>출퇴근 설정</h2>
+    <form id="commuteForm" autocomplete="off">
+      <label for="homeStationInput">🏠 집 근처 역</label>
+      <input id="homeStationInput" list="stationList" placeholder="예: 잠실나루역">
+      <label for="workStationInput">🏢 회사 근처 역</label>
+      <input id="workStationInput" list="stationList" placeholder="예: 판교역">
+      <p id="settingsError" class="error hidden" role="alert"></p>
+      <button type="submit" class="primary big">저장</button>
+    </form>
+    <div class="privacy">
+      <strong>🔒 개인정보 안내</strong>
+      <p>바로타는 회원가입이 없고 개인정보를 수집·저장하지 않습니다. 출퇴근 역과 최근 경로는 <b>이 기기의 브라우저에만</b> 저장되며 서버로 보내지 않습니다. 열차 도착 시간을 조회할 때는 역 이름과 노선만 전송합니다.</p>
+      <button type="button" id="clearDataBtn" class="secondary">이 기기에 저장된 정보 모두 지우기</button>
+    </div>
+    <details class="advanced">
+      <summary>고급: 실시간 API 주소</summary>
+      <p class="note">기본값은 이 사이트의 /api 입니다. 다른 프록시를 쓰는 경우에만 HTTPS 주소를 입력하세요.</p>
+      <input id="apiBase" placeholder="/api">
+      <button type="button" id="saveSettings" class="secondary">API 주소 저장</button>
+    </details>
+  </section>
 
   <!-- 시작 메뉴: 출근 / 퇴근 / 다른 역 -->
   <section class="panel" id="menu">
     <h2>어디로 가시나요?</h2>
     <p id="clockStatus" class="note"></p>
     <div class="menu-grid">
-      <button id="toWorkBtn" class="choice"><span class="choice-icon">☀️</span><span class="choice-title">출근</span><span class="choice-sub">잠실나루 → 판교</span></button>
-      <button id="toHomeBtn" class="choice"><span class="choice-icon">🌙</span><span class="choice-title">퇴근</span><span class="choice-sub">판교 → 잠실나루</span></button>
+      <button id="toWorkBtn" class="choice"><span class="choice-icon">☀️</span><span class="choice-title">출근</span><span class="choice-sub" id="workSub"></span></button>
+      <button id="toHomeBtn" class="choice"><span class="choice-icon">🌙</span><span class="choice-title">퇴근</span><span class="choice-sub" id="homeSub"></span></button>
     </div>
     <h3 class="sub-title">다른 경로</h3>
     <form id="routeForm" class="route-form" autocomplete="off">
@@ -73,15 +97,9 @@
     <button id="refreshBtn" class="secondary">지금 새로고침</button>
   </section>
 
-  <section id="settings" class="panel hidden">
-    <h2>실시간 API 설정</h2>
-    <p class="note">기본값은 이 사이트의 /api 입니다(Vercel 배포 시 자동 연결). 다른 프록시를 쓰는 경우에만 HTTPS 주소를 입력하세요. 공개 웹사이트에 비밀 API 키를 넣지 마세요.</p>
-    <label for="apiBase">프록시 기본 URL (비우면 기본값)</label>
-    <input id="apiBase" placeholder="/api">
-    <button id="saveSettings" class="secondary">설정 저장</button>
-  </section>
 
   <footer>
+    <p>🔒 개인정보를 수집·저장하지 않습니다. 설정은 이 기기에만 저장됩니다.</p>
     <p>경로와 소요 시간은 추정치입니다. 실제 탑승·환승 정보는 역의 공식 안내를 우선 확인하세요.</p>
     <p>역·노선 데이터 © OpenStreetMap contributors (<a href="data/LICENSE.md">ODbL</a>) · 실시간 정보: 서울시 열린데이터광장</p>
   </footer>
