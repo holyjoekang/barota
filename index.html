@@ -22,17 +22,23 @@
       <button id="toWorkBtn" class="choice"><span class="choice-icon">☀️</span><span class="choice-title">출근</span><span class="choice-sub">잠실나루 → 판교</span></button>
       <button id="toHomeBtn" class="choice"><span class="choice-icon">🌙</span><span class="choice-title">퇴근</span><span class="choice-sub">판교 → 잠실나루</span></button>
     </div>
-    <label for="stationInput">다른 역에서 타기</label>
-    <form id="stationForm" class="inputrow">
-      <input id="stationInput" placeholder="역 이름 (예: 서울역)" autocomplete="off" enterkeyhint="search">
-      <button type="submit" class="primary">보기</button>
+    <h3 class="sub-title">다른 경로</h3>
+    <form id="routeForm" class="route-form" autocomplete="off">
+      <label for="fromInput">타는 역</label>
+      <input id="fromInput" list="stationList" placeholder="예: 서울역" enterkeyhint="next">
+      <button type="button" id="swapBtn" class="swap" aria-label="타는 역과 내리는 역 바꾸기">⇅ 바꾸기</button>
+      <label for="toInput">내리는 역</label>
+      <input id="toInput" list="stationList" placeholder="예: 강남역" enterkeyhint="go">
+      <p id="routeError" class="error hidden" role="alert"></p>
+      <button type="submit" class="primary big">경로 안내 시작</button>
     </form>
-    <div id="quickStations" class="quick"></div>
+    <datalist id="stationList"></datalist>
+    <div id="recentRoutes" class="quick"></div>
   </section>
 
   <!-- 선택 후 상단 요약 -->
   <section class="panel compact hidden" id="choiceBar">
-    <div><div class="note">지금 보는 안내</div><strong id="choiceLabel"></strong></div>
+    <div><strong id="choiceLabel"></strong><div id="choiceSub" class="note"></div></div>
     <button id="changeBtn" class="secondary">다른 곳 선택</button>
   </section>
 
@@ -40,6 +46,7 @@
     <div id="mode" class="eyebrow"></div>
     <h1 id="headline"></h1>
     <p id="detail"></p>
+    <p id="detailNote" class="detail-note"></p>
     <div id="liveHero" class="live-hero hidden">
       <div id="liveHeroStation" class="live-station"></div>
       <div class="eta-label">다음 열차</div>
@@ -72,17 +79,14 @@
     <label for="apiBase">프록시 기본 URL (비우면 기본값)</label>
     <input id="apiBase" placeholder="/api">
     <button id="saveSettings" class="secondary">설정 저장</button>
-    <label for="busCity">버스 도시코드 (선택)</label>
-    <input id="busCity" placeholder="예: 25">
-    <label for="busNode">버스 정류소 ID (선택)</label>
-    <input id="busNode" placeholder="TAGO nodeId">
-    <button id="saveBus" class="secondary">버스 정류소 저장</button>
   </section>
 
   <footer>
-    <p>실제 탑승·환승 정보는 역과 정류장의 공식 안내를 우선 확인하세요.</p>
+    <p>경로와 소요 시간은 추정치입니다. 실제 탑승·환승 정보는 역의 공식 안내를 우선 확인하세요.</p>
+    <p>역·노선 데이터 © OpenStreetMap contributors (<a href="data/LICENSE.md">ODbL</a>) · 실시간 정보: 서울시 열린데이터광장</p>
   </footer>
 </main>
+<script src="route.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

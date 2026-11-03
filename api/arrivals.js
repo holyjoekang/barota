@@ -5,8 +5,6 @@ const LINE_NAMES = {
   1032: 'GTX-A', 1061: '중앙선', 1063: '경의중앙선', 1065: '공항철도', 1067: '경춘선', 1075: '수인분당선', 1077: '신분당선', 1081: '경강선',
   1092: '우이신설선', 1093: '서해선', 1094: '신림선',
 };
-const LINE_IDS = {};
-for (const [id, name] of Object.entries(LINE_NAMES)) (LINE_IDS[name] ||= []).push(id);
 const STATION_RE = /^[가-힣A-Za-z0-9·.()]{1,20}$/;
 const cache = new Map();
 const ttl = 15000;
@@ -27,33 +25,11 @@ async function cached(url) {
   }
 }
 
-// 방향 판별: updnLine(상행/하행/내선/외선)을 우선 사용하고, trainLineNm의 "OO방면"으로 보조 판별.
-// 2호선 내선순환 = 시계방향(잠실나루 → 잠실 → 강남), 외선순환 = 반시계방향(강남 → 삼성 → 잠실 → 잠실나루 → 성수).
-// (우측통행이라 시계방향 열차가 안쪽 선로를 달린다)
-// 신분당선 상행 = 신사 방면, 하행 = 광교 방면.
-const DIRECTION_RULES = {
-  '잠실나루|2호선': { updn: '내선', via: /잠실방면/ },
-  '강남|2호선': { updn: '외선', via: /역삼방면/ },
-  '강남|신분당선|광교': { updn: '하행', via: /양재방면/ },
-  '강남|신분당선|신사': { updn: '상행', via: /신논현방면/ },
-  '판교|신분당선|신사': { updn: '상행', via: /청계산입구방면/ },
-  '판교|신분당선|광교': { updn: '하행', via: /정자방면/ },
-};
-
-function directionRule(station, line, direction) {
-  if (line === '신분당선') return DIRECTION_RULES[station + '|' + line + '|' + (direction.includes('광교') ? '광교' : '신사')];
-  return DIRECTION_RULES[station + '|' + line];
-}
-
-function matchesDirection(row, station, line, direction) {
-  if (!line) return true;
-  const subwayId = String(row.subwayId || '');
-  if (subwayId && !LINE_IDS[line].includes(subwayId)) return false;
-  const rule = directionRule(station, line, direction);
-  if (!rule) return true;
-  const updn = String(row.updnLine || '');
-  if (updn) return updn === rule.updn;
-  return rule.via.test(String(row.trainLineNm || ''));
+// 방향 판별: trainLineNm "성수행 - 잠실방면"의 'OO방면'은 다음 정차역. 경로의 다음 역과 비교한다.
+const cleanName = (x) => String(x || '').replace(/\(.*?\)/g, '').replace(/역$/, '').trim();
+function headingOf(row) {
+  const m = /-\s*(.+?)\s*방면/.exec(String(row.trainLineNm || ''));
+  return m ? cleanName(m[1]) : '';
 }
 
 // recptnDt는 KST("YYYY-MM-DD HH:mm:ss"). 수신 후 경과 시간만큼 도착 예정 시간을 보정한다.
@@ -81,11 +57,19 @@ function estimateSeconds(code, msg) {
 
 const ARRIVAL_CODES = { 0: '진입 중', 1: '도착', 2: '출발', 3: '전역 출발', 4: '전역 진입', 5: '전역 도착', 99: '운행 중' };
 
-function parseSubway(data, station, line, direction, now = Date.now()) {
-  const rows = data.realtimeArrivalList || [];
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .filter((r) => matchesDirection(r, station, line, direction))
+function parseSubway(data, station, lineId, next, now = Date.now()) {
+  let rows = data.realtimeArrivalList || [];
+  if (!Array.isArray(rows)) return { trains: [], warning: '' };
+  let warning = '';
+  if (lineId) rows = rows.filter((r) => String(r.subwayId) === lineId);
+  if (next) {
+    const want = cleanName(next);
+    const matched = rows.filter((r) => headingOf(r) === want);
+    // 방면 표기가 아예 없는 노선이면 방향 구분 없이 보여준다
+    if (matched.length || rows.some((r) => headingOf(r))) rows = matched;
+    else if (rows.length) warning = '이 노선은 방향 구분 정보가 없어 양방향을 함께 표시합니다';
+  }
+  const trains = rows
     .filter((r) => Number(r.arvlCd) !== 2) // 이미 이 역을 출발한 열차 제외
     .map((r) => {
       const message = String(r.arvlMsg2 || '도착정보 확인 필요');
@@ -97,10 +81,10 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
       if (seconds != null) seconds = Math.max(0, Math.round(seconds - receivedAgeSeconds(r.recptnDt, now)));
       if (code === 0 || code === 1) seconds = 0;
       const terminal = String(r.bstatnNm || '').replace(/\s*\(.*$/, '');
-      const lineName = LINE_NAMES[r.subwayId] || line || '지하철';
+      const lineName = LINE_NAMES[r.subwayId] || '지하철';
       const updn = String(r.updnLine || '');
-      const via = /-\s*(.+?)\s*방면/.exec(String(r.trainLineNm || ''));
-      const heading = via ? via[1] + ' 방면' : direction || updn;
+      const via = headingOf(r);
+      const heading = via ? via + ' 방면' : updn;
       return {
         type: 'subway',
         name: lineName + ' ' + station + '역',
@@ -108,7 +92,7 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
         updn,
         heading,
         group: lineName + '|' + updn,
-        destination: terminal ? terminal + '행' : direction,
+        destination: terminal ? terminal + '행' : '',
         trainLine: String(r.trainLineNm || ''),
         seconds,
         estimated,
@@ -122,7 +106,8 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
       };
     })
     .sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity))
-    .slice(0, line ? 5 : 40);
+    .slice(0, next ? 5 : 40);
+  return { trains, warning };
 }
 
 function parseBus(data) {
@@ -152,8 +137,8 @@ module.exports = async (req, res) => {
   // "서울역" → "서울" (API는 '역' 없이 역명을 받는다)
   const station = String(req.query.station || '').trim().replace(/역$/, '');
   if (station) {
-    const line = String(req.query.line || ''), direction = String(req.query.direction || '');
-    if (!STATION_RE.test(station) || (line && !LINE_IDS[line])) return res.status(400).json({ error: 'Unsupported station/line' });
+    const lineId = String(req.query.lineId || ''), next = String(req.query.next || '');
+    if (!STATION_RE.test(station) || (lineId && !LINE_NAMES[lineId]) || (next && !STATION_RE.test(next))) return res.status(400).json({ error: 'Unsupported station/line' });
     const key = process.env.SEOUL_SUBWAY_KEY;
     if (key) {
       try {
@@ -162,9 +147,10 @@ module.exports = async (req, res) => {
         const err = data.errorMessage || (data.code ? data : null);
         if (err && err.code === 'INFO-200') throw Error('"' + station + '"역 도착 정보가 없습니다. 역 이름을 확인하세요');
         if (err && err.status !== 200 && err.code !== 'INFO-000') throw Error(err.message || 'API 오류');
-        const trains = parseSubway(data, station, line, direction);
+        const { trains, warning } = parseSubway(data, station, lineId, next);
         items.push(...trains);
-        if (!trains.length) warnings.push('해당 방향 지하철 정보 없음');
+        if (warning) warnings.push(warning);
+        if (!trains.length) warnings.push('해당 방향 열차 정보 없음');
       } catch (e) {
         warnings.push('지하철 조회 실패: ' + e.message);
       }

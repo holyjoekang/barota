@@ -8,3 +8,5 @@
 #stationForm button{flex:0 0 auto;font-size:20px;padding:0 20px}.quick{flex-wrap:wrap}.quick button{font-size:17px;padding:11px 14px;background:#f0f3f7;color:#15283d}
 .compact{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px}.compact strong{font-size:21px}.compact.hidden{display:none}.compact>div{flex:1;min-width:0}.panel.compact>.secondary{flex:0 0 auto;width:auto}
 button.arrival{display:block;width:100%;text-align:left;background:#f6f9fc;border:2px solid transparent;border-radius:14px;margin:8px 0;padding:14px;font-weight:400;color:inherit}button.arrival.active{border-color:#0868df;background:#e7f0ff}button.arrival strong{font-size:19px}
+.sub-title{font-size:21px;margin:26px 0 4px;padding-top:18px;border-top:1px solid #dbe5ee}.route-form label{margin-top:12px}.swap{display:block;margin:10px auto 0;background:#f0f3f7;color:#15283d;font-size:16px;padding:9px 16px}.big{width:100%;font-size:22px;margin-top:16px;min-height:62px}.error{color:#b42318;font-size:17px;font-weight:700;margin:12px 0 0}#recentRoutes{margin-top:14px}
+.detail-note{font-size:17px;color:#a9c0d6;margin:-8px 0 0}.detail-note:empty{display:none}
