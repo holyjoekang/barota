@@ -10,24 +10,36 @@
 <body>
 <main class="app">
   <header>
-    <div><span class="brand">🚇 바로타</span><small>서울·수도권 대중교통 안내</small></div>
+    <div><span class="brand">🚇 바로타</span><small>서울·수도권 지하철 실시간 안내</small></div>
     <button id="settingsBtn" class="subtle" aria-label="설정">⚙️</button>
   </header>
 
-  <section class="panel" id="commutePanel">
-    <h2>매일 출퇴근 안내</h2>
+  <!-- 시작 메뉴: 출근 / 퇴근 / 다른 역 -->
+  <section class="panel" id="menu">
+    <h2>어디로 가시나요?</h2>
     <p id="clockStatus" class="note"></p>
-    <div class="actions">
-      <button id="toWorkBtn" class="primary">☀️ 출근</button>
-      <button id="toHomeBtn" class="secondary">🌙 퇴근</button>
+    <div class="menu-grid">
+      <button id="toWorkBtn" class="choice"><span class="choice-icon">☀️</span><span class="choice-title">출근</span><span class="choice-sub">잠실나루 → 판교</span></button>
+      <button id="toHomeBtn" class="choice"><span class="choice-icon">🌙</span><span class="choice-title">퇴근</span><span class="choice-sub">판교 → 잠실나루</span></button>
     </div>
-    <p class="note">평일 05:00~11:59 출근 · 12:00~23:59 퇴근 · 그 외 시간에는 마지막 선택 유지. 방향은 언제든 바꿀 수 있습니다.</p>
+    <label for="stationInput">다른 역에서 타기</label>
+    <form id="stationForm" class="inputrow">
+      <input id="stationInput" placeholder="역 이름 (예: 서울역)" autocomplete="off" enterkeyhint="search">
+      <button type="submit" class="primary">보기</button>
+    </form>
+    <div id="quickStations" class="quick"></div>
   </section>
 
-  <section class="hero" aria-live="polite">
-    <div id="mode" class="eyebrow">안내 대기 중</div>
-    <h1 id="headline">목적지를<br>입력하세요</h1>
-    <p id="detail">큰 글씨로 이동을 안내합니다.</p>
+  <!-- 선택 후 상단 요약 -->
+  <section class="panel compact hidden" id="choiceBar">
+    <div><div class="note">지금 보는 안내</div><strong id="choiceLabel"></strong></div>
+    <button id="changeBtn" class="secondary">다른 곳 선택</button>
+  </section>
+
+  <section class="hero hidden" id="hero" aria-live="polite">
+    <div id="mode" class="eyebrow"></div>
+    <h1 id="headline"></h1>
+    <p id="detail"></p>
     <div id="liveHero" class="live-hero hidden">
       <div id="liveHeroStation" class="live-station"></div>
       <div class="eta-label">다음 열차</div>
@@ -46,25 +58,12 @@
     </div>
   </section>
 
-  <section class="panel">
-    <h2>실시간 도착 정보</h2>
-    <p id="liveStatus" class="note">실시간 정보를 불러오는 중…</p>
+  <section class="panel hidden" id="livePanel">
+    <h2 id="liveTitle">실시간 도착 정보</h2>
+    <p id="liveStatus" class="note"></p>
     <div id="liveResults"></div>
-    <p class="note">서울시 실시간 지하철 도착정보 · 15초마다 자동 갱신 · 남은 시간은 1초마다 줄어듭니다. 버스는 정류소 ID를 설정한 경우 조회합니다.</p>
+    <p class="note">서울시 실시간 지하철 도착정보 · 15초마다 자동 갱신</p>
     <button id="refreshBtn" class="secondary">지금 새로고침</button>
-  </section>
-
-  <section class="panel">
-    <div class="status" id="gpsStatus">📍 위치를 확인해 주세요</div>
-    <button id="gpsBtn" class="secondary">내 위치 확인</button>
-    <label for="destination">다른 곳으로 가시나요?</label>
-    <input id="destination" placeholder="예: 잠실역, 서울역" autocomplete="off">
-    <div class="quick">
-      <button data-dest="잠실역">잠실역</button>
-      <button data-dest="강남역">강남역</button>
-      <button data-dest="서울역">서울역</button>
-    </div>
-    <button id="searchBtn" class="primary">목적지 안내 시작</button>
   </section>
 
   <section id="settings" class="panel hidden">
@@ -81,7 +80,6 @@
   </section>
 
   <footer>
-    <p>위치정보는 브라우저에서만 사용합니다. 지하철 실내 GPS는 부정확할 수 있습니다.</p>
     <p>실제 탑승·환승 정보는 역과 정류장의 공식 안내를 우선 확인하세요.</p>
   </footer>
 </main>

@@ -1,7 +1,13 @@
 // Vercel Node.js serverless function. Keys are read only from environment variables.
-const ALLOWED_STATIONS = new Set(['잠실나루', '강남', '판교']);
-const ALLOWED_LINES = new Set(['2호선', '신분당선']);
-const LINE_IDS = { '2호선': ['1002'], '신분당선': ['1077'] };
+// 서울시 실시간 도착정보 subwayId → 노선명
+const LINE_NAMES = {
+  1001: '1호선', 1002: '2호선', 1003: '3호선', 1004: '4호선', 1005: '5호선', 1006: '6호선', 1007: '7호선', 1008: '8호선', 1009: '9호선',
+  1032: 'GTX-A', 1061: '중앙선', 1063: '경의중앙선', 1065: '공항철도', 1067: '경춘선', 1075: '수인분당선', 1077: '신분당선', 1081: '경강선',
+  1092: '우이신설선', 1093: '서해선', 1094: '신림선',
+};
+const LINE_IDS = {};
+for (const [id, name] of Object.entries(LINE_NAMES)) (LINE_IDS[name] ||= []).push(id);
+const STATION_RE = /^[가-힣A-Za-z0-9·.()]{1,20}$/;
 const cache = new Map();
 const ttl = 15000;
 
@@ -39,6 +45,7 @@ function directionRule(station, line, direction) {
 }
 
 function matchesDirection(row, station, line, direction) {
+  if (!line) return true;
   const subwayId = String(row.subwayId || '');
   if (subwayId && !LINE_IDS[line].includes(subwayId)) return false;
   const rule = directionRule(station, line, direction);
@@ -89,9 +96,17 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
       if (seconds != null) seconds = Math.max(0, Math.round(seconds - receivedAgeSeconds(r.recptnDt, now)));
       if (code === 0 || code === 1) seconds = 0;
       const terminal = String(r.bstatnNm || '').replace(/\s*\(.*$/, '');
+      const lineName = LINE_NAMES[r.subwayId] || line || '지하철';
+      const updn = String(r.updnLine || '');
+      const via = /-\s*(.+?)\s*방면/.exec(String(r.trainLineNm || ''));
+      const heading = via ? via[1] + ' 방면' : direction || updn;
       return {
         type: 'subway',
-        name: line + ' ' + station + '역',
+        name: lineName + ' ' + station + '역',
+        line: lineName,
+        updn,
+        heading,
+        group: lineName + '|' + updn,
         destination: terminal ? terminal + '행' : direction,
         trainLine: String(r.trainLineNm || ''),
         seconds,
@@ -106,7 +121,7 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
       };
     })
     .sort((a, b) => (a.seconds ?? Infinity) - (b.seconds ?? Infinity))
-    .slice(0, 5);
+    .slice(0, line ? 5 : 40);
 }
 
 function parseBus(data) {
@@ -133,16 +148,18 @@ module.exports = async (req, res) => {
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
 
   const items = [], warnings = [];
-  const station = req.query.station ? String(req.query.station) : '';
+  // "서울역" → "서울" (API는 '역' 없이 역명을 받는다)
+  const station = String(req.query.station || '').trim().replace(/역$/, '');
   if (station) {
-    const line = String(req.query.line || '2호선'), direction = String(req.query.direction || '');
-    if (!ALLOWED_STATIONS.has(station) || !ALLOWED_LINES.has(line)) return res.status(400).json({ error: 'Unsupported station/line' });
+    const line = String(req.query.line || ''), direction = String(req.query.direction || '');
+    if (!STATION_RE.test(station) || (line && !LINE_IDS[line])) return res.status(400).json({ error: 'Unsupported station/line' });
     const key = process.env.SEOUL_SUBWAY_KEY;
     if (key) {
       try {
         const url = `http://swopenapi.seoul.go.kr/api/subway/${encodeURIComponent(key)}/json/realtimeStationArrival/0/50/${encodeURIComponent(station)}`;
         const data = await cached(url);
-        const err = data.errorMessage;
+        const err = data.errorMessage || (data.code ? data : null);
+        if (err && err.code === 'INFO-200') throw Error('"' + station + '"역 도착 정보가 없습니다. 역 이름을 확인하세요');
         if (err && err.status !== 200 && err.code !== 'INFO-000') throw Error(err.message || 'API 오류');
         const trains = parseSubway(data, station, line, direction);
         items.push(...trains);
