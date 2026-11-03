@@ -127,9 +127,9 @@ function remainingSeconds(item) {
 function formatRemaining(item) {
   const left = remainingSeconds(item);
   if (left == null) return item.message || '도착정보 없음';
-  if (left <= 30) return item.status === '도착' ? '지금 도착' : '곧 도착';
-  const m = Math.floor(left / 60), s = left % 60;
-  return m ? m + '분 ' + String(s).padStart(2, '0') + '초 후' : s + '초 후';
+  if (item.status === '도착' || item.status === '진입 중') return '지금 도착';
+  if (left <= 30) return '곧 도착';
+  return (item.estimated ? '약 ' : '') + Math.ceil(left / 60) + '분 후 도착';
 }
 
 // 남은 시간을 카운트다운으로 보여줄 때는 API 원문 메시지 대신 현재 위치만 덧붙인다.
@@ -152,11 +152,14 @@ function renderLive() {
       const first = subway[0];
       $('eta').textContent = formatRemaining(first);
       $('etaInfo').textContent = [trainLabel(first), trainWhere(first)].filter(Boolean).join(' · ');
-      $('etaNext').textContent = subway[1] ? '그다음 열차 ' + formatRemaining(subway[1]) + ' (' + subway[1].destination + ')' : '';
+      const second = subway[1];
+      $('etaNext').textContent = second ? formatRemaining(second) : '정보 없음';
+      $('etaNextInfo').textContent = second ? [trainLabel(second), trainWhere(second)].filter(Boolean).join(' · ') : '';
     } else {
       $('eta').textContent = fetchedAt ? '도착 정보 없음' : '불러오는 중…';
       $('etaInfo').textContent = '';
       $('etaNext').textContent = '';
+      $('etaNextInfo').textContent = '';
     }
   }
 

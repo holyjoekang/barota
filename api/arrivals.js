@@ -61,6 +61,16 @@ function secondsFromMessage(msg) {
   return Number(m[1] || 0) * 60 + Number(m[2] || 0);
 }
 
+// 남은 초가 없을 때 위치 정보로 대략 추정(역 간 약 2분).
+function estimateSeconds(code, msg) {
+  const n = /\[(\d+)\]번째 전역/.exec(msg);
+  if (n) return Number(n[1]) * 120;
+  if (code === 3) return 90;      // 전역 출발
+  if (code === 4) return 75;      // 전역 진입
+  if (code === 5) return 105;     // 전역 도착
+  return null;
+}
+
 const ARRIVAL_CODES = { 0: '진입 중', 1: '도착', 2: '출발', 3: '전역 출발', 4: '전역 진입', 5: '전역 도착', 99: '운행 중' };
 
 function parseSubway(data, station, line, direction, now = Date.now()) {
@@ -68,11 +78,14 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
   if (!Array.isArray(rows)) return [];
   return rows
     .filter((r) => matchesDirection(r, station, line, direction))
+    .filter((r) => Number(r.arvlCd) !== 2) // 이미 이 역을 출발한 열차 제외
     .map((r) => {
       const message = String(r.arvlMsg2 || '도착정보 확인 필요');
       const code = Number(r.arvlCd);
       let seconds = Number(r.barvlDt);
+      let estimated = false;
       if (!Number.isFinite(seconds) || seconds <= 0) seconds = secondsFromMessage(message);
+      if (seconds == null) { seconds = estimateSeconds(code, message); estimated = seconds != null; }
       if (seconds != null) seconds = Math.max(0, Math.round(seconds - receivedAgeSeconds(r.recptnDt, now)));
       if (code === 0 || code === 1) seconds = 0;
       const terminal = String(r.bstatnNm || '').replace(/\s*\(.*$/, '');
@@ -82,6 +95,7 @@ function parseSubway(data, station, line, direction, now = Date.now()) {
         destination: terminal ? terminal + '행' : direction,
         trainLine: String(r.trainLineNm || ''),
         seconds,
+        estimated,
         minutes: seconds == null ? null : seconds / 60,
         message,
         location: String(r.arvlMsg3 || ''),
