@@ -78,7 +78,7 @@ function showMenu() {
   requestSeq++;
   liveItems = []; fetchedAt = 0;
   renderMenu();
-  for (const id of ['choiceBar', 'hero', 'stepsPanel', 'livePanel']) $(id).classList.add('hidden');
+  for (const id of ['choiceBar', 'hero', 'stepNav', 'stepsPanel', 'livePanel']) $(id).classList.add('hidden');
   $('menu').classList.remove('hidden');
   window.scrollTo(0, 0);
 }
@@ -127,7 +127,7 @@ function startRoute(fromInput, toInput, label) {
   $('choiceBar').classList.remove('hidden');
   $('choiceLabel').textContent = (label ? label + ' · ' : '') + from + ' → ' + to;
   $('choiceSub').textContent = '약 ' + route.minutes + '분 · ' + (route.transfers ? '환승 ' + route.transfers + '회' : '환승 없음');
-  for (const id of ['hero', 'stepsPanel', 'livePanel']) $(id).classList.remove('hidden');
+  for (const id of ['hero', 'stepNav', 'stepsPanel', 'livePanel']) $(id).classList.remove('hidden');
   $('steps').replaceChildren(...steps.map((s) => {
     const li = document.createElement('li');
     li.textContent = s.title + ' — ' + s.detail + (s.note ? ' (' + s.note + ')' : '');
@@ -145,7 +145,7 @@ function showStep() {
   $('detailNote').textContent = s.note || '';
   document.querySelectorAll('#steps li').forEach((el, i) => el.classList.toggle('active', i === stepIndex));
   $('prevBtn').disabled = stepIndex === 0;
-  $('nextBtn').textContent = stepIndex === steps.length - 1 ? '처음으로' : '다음 단계';
+  $('nextBtn').textContent = stepIndex === steps.length - 1 ? '처음으로' : '다음 단계 →';
   liveItems = []; liveWarnings = []; fetchedAt = 0;
   renderLive();
   refresh();
@@ -154,18 +154,23 @@ function showStep() {
 const currentLeg = () => (view ? steps[stepIndex].leg : null);
 
 // ---- 실시간 표시 ----
+// 여유 시간: 실제 도착 예정보다 30초 앞당겨 보여 준다 (예: 2분 후 → 1분 30초 후)
+const SAFETY_SECONDS = 30;
+
 function remainingSeconds(item) {
   const s = Number(item.seconds ?? (item.minutes != null ? item.minutes * 60 : NaN));
   if (!Number.isFinite(s)) return null;
-  return Math.max(0, Math.round(s - (Date.now() - fetchedAt) / 1000));
+  return Math.max(0, Math.round(s - SAFETY_SECONDS - (Date.now() - fetchedAt) / 1000));
 }
 
 function formatRemaining(item) {
   const left = remainingSeconds(item);
   if (left == null) return item.message || '도착정보 없음';
   if (item.status === '도착' || item.status === '진입 중') return '지금 도착';
-  if (left <= 30) return '곧 도착';
-  return (item.estimated ? '약 ' : '') + Math.ceil(left / 60) + '분 후 도착';
+  if (left <= 0) return '곧 도착';
+  if (item.estimated) return '약 ' + Math.max(1, Math.round(left / 60)) + '분 후 도착';
+  const m = Math.floor(left / 60), sec = left % 60;
+  return (m ? m + '분 ' : '') + (sec || !m ? sec + '초 ' : '') + '후 도착';
 }
 
 function trainWhere(item) {
