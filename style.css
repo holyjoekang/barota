@@ -12,3 +12,9 @@ button.arrival{display:block;width:100%;text-align:left;background:#f6f9fc;borde
 .detail-note{font-size:17px;color:#a9c0d6;margin:-8px 0 0}.detail-note:empty{display:none}
 .settings-btn{background:#fff;color:#12385c;font-size:16px;padding:10px 14px;box-shadow:0 2px 10px #2030401a;flex:0 0 auto}#settings h2{font-size:24px}.privacy{margin-top:22px;padding:16px;border-radius:14px;background:#f0f6ef;color:#1f3d26;font-size:16px;line-height:1.55}.privacy p{margin:6px 0 12px}.privacy button{width:100%}.advanced{margin-top:18px;font-size:15px;color:#536579}.advanced summary{cursor:pointer;padding:6px 0}.advanced input{font-size:18px;padding:12px;margin:6px 0}.advanced button{width:100%}
 .step-nav{display:flex;gap:10px;margin:-4px 0 15px;position:sticky;bottom:0;z-index:5;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(#edf2f700,#edf2f7 18%)}.step-nav.hidden{display:none}.step-nav button{flex:1;font-size:24px;min-height:72px;border-radius:16px}.step-nav #nextBtn{flex:2}
+
+.transfer-guide { margin-top: 18px; padding: 16px; border: 2px solid #347e70; border-radius: 14px; background: #f0f8f4; color: #173d35; text-align: left; }
+.transfer-guide h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.transfer-guide p { margin: 8px 0; }
+.transfer-position { display: block; font-size: 1.4rem; }
+.transfer-guide a { color: #215b50; }
