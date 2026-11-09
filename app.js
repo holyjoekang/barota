@@ -4,7 +4,6 @@ const $ = (id) => document.getElementById(id);
 const DEFAULT_API = location.protocol.startsWith('http') ? '/api' : '';
 let apiBase = localStorage.getItem('barotaApiBase') || '';
 
-let transferRecords = [];
 let network = null;                 // route.js 네트워크 (data/subway.json 로드 후)
 let view = null;                    // null = 시작 메뉴, 아니면 { label, route }
 let steps = [], stepIndex = 0;
@@ -32,15 +31,7 @@ async function loadNetwork() {
   try {
     const res = await fetch('data/subway.json');
     if (!res.ok) throw Error('HTTP ' + res.status);
-    const subway = await res.json();
-    try {
-      const transfers = await fetch('data/transfers.json');
-      if (transfers.ok) {
-        const data = await transfers.json();
-        transferRecords = Array.isArray(data.records) ? data.records : [];
-      }
-    } catch { /* Route guidance remains available without position data. */ }
-    network = BarotaRoute.createNetwork(subway);
+    network = BarotaRoute.createNetwork(await res.json());
     $('stationList').replaceChildren(...network.names.sort((a, b) => a.localeCompare(b, 'ko')).map((n) => {
       const o = document.createElement('option');
       o.value = n + '역';
@@ -104,10 +95,10 @@ function buildSteps(route) {
     const toward = leg.to + ' 방면';
     const ride = leg.stops + '개 역 · 약 ' + Math.max(1, Math.round(leg.minutes)) + '분';
     if (i === 0) {
-      out.push({ title: leg.from + '역', detail: leg.line + ' ' + toward + ' 승차', note: '다음 역 ' + leg.next + ' · ' + ride, transfer: BarotaTransfer.guide(leg, route.legs[i + 1], transferRecords), leg });
+      out.push({ title: leg.from + '역', detail: leg.line + ' ' + toward + ' 승차', note: '다음 역 ' + leg.next + ' · ' + ride, leg });
     } else {
-      out.push({ title: leg.from + '역 하차', detail: leg.line + ' ' + leg.next + '역 방면으로 환승하세요', transfer: BarotaTransfer.guide(route.legs[i - 1], leg, transferRecords), leg });
-      out.push({ title: leg.line + ' 승차', detail: toward + ' 열차를 타세요', note: '다음 역 ' + leg.next + ' · ' + ride, transfer: BarotaTransfer.guide(leg, route.legs[i + 1], transferRecords), leg });
+      out.push({ title: leg.from + '역 하차', detail: leg.line + '으로 환승하세요', leg });
+      out.push({ title: leg.line + ' 승차', detail: toward + ' 열차를 타세요', note: '다음 역 ' + leg.next + ' · ' + ride, leg });
     }
   });
   out.push({ title: route.to + '역 하차', detail: '목적지 ' + route.to + '역에 도착합니다', leg: null });
@@ -146,31 +137,12 @@ function startRoute(fromInput, toInput, label) {
   showStep();
 }
 
-function renderTransfer(guide) {
-  const box = $('transferGuide');
-  box.classList.toggle('hidden', !guide);
-  box.replaceChildren();
-  if (!guide) return;
-  const heading = document.createElement('h2'); heading.textContent = guide.title;
-  const direction = document.createElement('p'); direction.textContent = guide.direction;
-  const position = document.createElement('strong'); position.className = 'transfer-position';
-  position.textContent = guide.position ? '빠른 환승 ' + guide.position : '빠른 환승 위치 미확인';
-  const note = document.createElement('p'); note.className = 'note'; note.textContent = guide.explanation;
-  box.append(heading, direction, position, note);
-  if (guide.position) {
-    const explain = document.createElement('p'); explain.className = 'note'; explain.textContent = '번호는 차량-출입문 순서입니다. 예: 3-2는 3번째 차량의 2번째 문';
-    const source = document.createElement('a'); source.href = guide.source.url; source.target = '_blank'; source.rel = 'noopener noreferrer'; source.textContent = guide.source.name + ' · 확인 ' + guide.checkedAt;
-    box.append(explain, source);
-  }
-}
-
 function showStep() {
   const s = steps[stepIndex];
   $('mode').textContent = view.label + ' · ' + (stepIndex + 1) + ' / ' + steps.length;
   $('headline').textContent = s.title;
   $('detail').textContent = s.detail;
   $('detailNote').textContent = s.note || '';
-  renderTransfer(s.transfer);
   document.querySelectorAll('#steps li').forEach((el, i) => el.classList.toggle('active', i === stepIndex));
   $('prevBtn').disabled = stepIndex === 0;
   $('nextBtn').textContent = stepIndex === steps.length - 1 ? '처음으로' : '다음 단계 →';
@@ -182,12 +154,13 @@ function showStep() {
 const currentLeg = () => (view ? steps[stepIndex].leg : null);
 
 // ---- 실시간 표시 ----
-// API가 전달한 남은 시간에서 조회 이후 경과 시간만 차감한다. 임의의 앞당김 없음.
+// 여유 시간: 실제 도착 예정보다 30초 앞당겨 보여 준다 (예: 2분 후 → 1분 30초 후)
+const SAFETY_SECONDS = 30;
 
 function remainingSeconds(item) {
   const s = Number(item.seconds ?? (item.minutes != null ? item.minutes * 60 : NaN));
   if (!Number.isFinite(s)) return null;
-  return Math.max(0, Math.round(s - (Date.now() - fetchedAt) / 1000));
+  return Math.max(0, Math.round(s - SAFETY_SECONDS - (Date.now() - fetchedAt) / 1000));
 }
 
 function formatRemaining(item) {
@@ -195,8 +168,9 @@ function formatRemaining(item) {
   if (left == null) return item.message || '도착정보 없음';
   if (item.status === '도착' || item.status === '진입 중') return '지금 도착';
   if (left <= 0) return '곧 도착';
+  if (item.estimated) return '약 ' + Math.max(1, Math.round(left / 60)) + '분 후 도착';
   const m = Math.floor(left / 60), sec = left % 60;
-  return (item.estimated ? '약 ' : '') + (m ? m + '분 ' + String(sec).padStart(2, '0') : sec) + '초 후 도착';
+  return (m ? m + '분 ' : '') + (sec || !m ? sec + '초 ' : '') + '후 도착';
 }
 
 function trainWhere(item) {
